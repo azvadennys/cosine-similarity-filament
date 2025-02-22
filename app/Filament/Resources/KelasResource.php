@@ -8,6 +8,8 @@ use App\Models\Kelas;
 use App\Models\KelasMahasiswa;
 use App\Models\User;
 use Filament\Forms;
+use Filament\Forms\Components\Actions\Action as ActionsAction;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
@@ -16,6 +18,7 @@ use Filament\Tables\Actions\Action;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Illuminate\Support\Str;
 
 class KelasResource extends Resource
 {
@@ -34,6 +37,20 @@ class KelasResource extends Resource
                     ->options(User::role('dosen')->pluck('name', 'id'))
                     ->searchable()
                     ->required(),
+                TextInput::make('kode_bergabung')
+                    ->label('Kode Bergabung')
+                    ->required()
+                    ->maxLength(4)
+                    ->unique(ignoreRecord: true)
+                    ->suffixAction(
+                        ActionsAction::make('generate_code')
+                            ->icon('heroicon-m-arrow-path')
+                            ->tooltip('Generate Kode')
+                            ->action(function ($state, $set) {
+                                $generatedCode = strtoupper(Str::random(4)); // Generate kode 4 karakter
+                                $set('kode_bergabung', $generatedCode); // Set ke input field
+                            })
+                    ),
             ]);
     }
 
@@ -47,68 +64,76 @@ class KelasResource extends Resource
                     ->limit(50) // Membatasi teks hingga 50 karakter
                     ->tooltip(fn($record) => $record->deskripsi), // Tooltip untuk melihat teks leng
                 Tables\Columns\TextColumn::make('dosen.name')->label('Dosen')->searchable(),
+                Tables\Columns\TextColumn::make('kode_bergabung')
+                    ->label('Kode Bergabung')
+                    ->visible(fn() => auth()->user()?->hasRole('admin') || auth()->user()?->hasRole('dosen'))
             ])
             ->filters([
                 //
             ])
             ->actions([
                 Action::make('request_join')
-                    ->label(
-                        fn($record) =>
-                        // Tampilkan status jika sudah request, atau 'Request Join' jika belum
-                        KelasMahasiswa::where('kelas_id', $record->id)
+                    ->label(function ($record) {
+                        $isJoined = KelasMahasiswa::where('kelas_id', $record->id)
                             ->where('mahasiswa_id', auth()->id())
-                            ->exists()
-                            ? ucfirst(KelasMahasiswa::where('kelas_id', $record->id)
-                                ->where('mahasiswa_id', auth()->id())
-                                ->first()->status)
-                            : 'Request Join'
-                    )
-                    ->color(
-                        fn($record) =>
-                        match (optional(KelasMahasiswa::where('kelas_id', $record->id)
-                            ->where('mahasiswa_id', auth()->id())
-                            ->first())->status) {
-                            'pending' => 'warning',    // Warna kuning untuk pending
-                            'accepted' => 'success',   // Warna hijau untuk accepted
-                            'rejected' => 'danger',    // Warna merah untuk rejected
-                            default => 'primary',      // Warna biru untuk tombol Request Join
-                        }
-                    )
-                    ->icon(
-                        fn($record) =>
-                        match (optional(KelasMahasiswa::where('kelas_id', $record->id)
-                            ->where('mahasiswa_id', auth()->id())
-                            ->first())->status) {
-                            'pending' => 'heroicon-o-clock',
-                            'accepted' => 'heroicon-o-check-circle',
-                            'rejected' => 'heroicon-o-x-circle',
-                            default => 'heroicon-o-paper-airplane', // Default icon for Request Join
-                        }
-                    )->button()
-                    ->visible(fn() => auth()->user()?->hasRole('mahasiswa')) // Hanya mahasiswa yang bisa request join
-                    ->disabled(
-                        fn($record) =>
-                        // Nonaktifkan tombol jika user sudah mengirim request
-                        KelasMahasiswa::where('kelas_id', $record->id)
-                            ->where('mahasiswa_id', auth()->id())
-                            ->exists()
-                    )
-                    ->action(function ($record) {
-                        // Proses Request Join
-                        KelasMahasiswa::create([
-                            'kelas_id' => $record->id,
-                            'mahasiswa_id' => auth()->id(),
-                            'status' => 'pending',
-                        ]);
+                            ->exists();
 
-                        Notification::make()
-                            ->title('Request berhasil dikirim')
-                            ->body("Permintaan untuk bergabung ke {$record->nama_kelas} telah dikirim.")
-                            ->success()
-                            ->send();
+                        return $isJoined ? 'Joined' : 'Request Join';
                     })
-                    ->requiresConfirmation(), // Konfirmasi sebelum mengirim request
+                    ->color(function ($record) {
+                        $isJoined = KelasMahasiswa::where('kelas_id', $record->id)
+                            ->where('mahasiswa_id', auth()->id())
+                            ->exists();
+
+                        return $isJoined ? 'success' : 'primary';
+                    })
+                    ->icon(function ($record) {
+                        $isJoined = KelasMahasiswa::where('kelas_id', $record->id)
+                            ->where('mahasiswa_id', auth()->id())
+                            ->exists();
+
+                        return $isJoined ? 'heroicon-o-check-circle' : 'heroicon-o-paper-airplane';
+                    })
+                    ->button()
+                    ->visible(fn() => auth()->user()?->hasRole('mahasiswa'))
+                    ->disabled(function ($record) {
+                        return KelasMahasiswa::where('kelas_id', $record->id)
+                            ->where('mahasiswa_id', auth()->id())
+                            ->exists();
+                    })
+                    ->form([
+                        TextInput::make('kode_bergabung')
+                            ->label('Masukkan Kode Kelas')
+                            ->required()
+                            ->maxLength(4),
+                    ])
+                    ->action(function ($record, array $data, $action) {
+                        $inputKodeKelas = $data['kode_bergabung'];
+
+                        // Cek apakah kode kelas sesuai
+                        if ($record->kode_bergabung === $inputKodeKelas) {
+                            // Buat record di KelasMahasiswa
+                            KelasMahasiswa::create([
+                                'kelas_id' => $record->id,
+                                'mahasiswa_id' => auth()->id(),
+                            ]);
+
+                            // Notifikasi berhasil
+                            Notification::make()
+                                ->title('Berhasil Bergabung')
+                                ->body("Anda berhasil bergabung ke kelas {$record->nama_kelas}.")
+                                ->success()
+                                ->send();
+                        } else {
+                            // Notifikasi berhasil
+                            Notification::make()
+                                ->title('Gagal Bergabung')
+                                ->body("Kode yang anda masukkan salah")
+                                ->danger()
+                                ->send();
+                        }
+                    })
+                    ->requiresConfirmation(),
 
                 Tables\Actions\ViewAction::make()
                     ->visible(
@@ -117,7 +142,6 @@ class KelasResource extends Resource
                             $record->dosen_id === auth()->id() || // Dosen hanya bisa melihat kelasnya sendiri
                             KelasMahasiswa::where('kelas_id', $record->id)
                             ->where('mahasiswa_id', auth()->id())
-                            ->where('status', 'accepted')
                             ->exists() // Mahasiswa hanya bisa melihat jika sudah accepted
                     )->button(),
                 // Edit dan Delete hanya untuk dosen yang memiliki kelas atau admin

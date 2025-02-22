@@ -16,10 +16,10 @@ return new class extends Migration
             $table->id();
             $table->string('nama_kelas');
             $table->text('deskripsi')->nullable();
+            $table->string('kode_bergabung', 4);
             $table->foreignId('dosen_id')->constrained('users')->onDelete('cascade');
             $table->timestamps();
         });
-
     }
 
     /**

@@ -15,7 +15,7 @@ class KelasSeeder extends Seeder
     public function run(): void
     {
         // Buat 10 kelas
-        Kelas::factory(10)->create()->each(function ($kelas) {
+        Kelas::factory(15)->create()->each(function ($kelas) {
             // Untuk setiap kelas, assign 5 mahasiswa
             KelasMahasiswa::factory(5)->create([
                 'kelas_id' => $kelas->id,

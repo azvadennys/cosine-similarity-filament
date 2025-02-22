@@ -35,11 +35,6 @@ class ViewKelas extends ViewRecord implements Tables\Contracts\HasTable
         $query = KelasMahasiswa::with('mahasiswa') // Pastikan relasi 'mahasiswa' ada di model
             ->where('kelas_id', $this->record->id);
 
-        // Mahasiswa hanya bisa melihat mahasiswa yang accepted
-        if (auth()->user()?->hasRole('mahasiswa')) {
-            $query->where('status', 'accepted');
-        }
-
         return $query;
     }
 
@@ -57,15 +52,6 @@ class ViewKelas extends ViewRecord implements Tables\Contracts\HasTable
             TextColumn::make('mahasiswa.email') // Email Mahasiswa
                 ->label('Email')
                 ->searchable(),
-
-            BadgeColumn::make('status') // Status dari tabel pivot
-                ->label('Status')
-                ->colors([
-                    'warning' => 'pending',
-                    'success' => 'accepted',
-                    'danger' => 'rejected',
-                ])
-                ->formatStateUsing(fn($state) => ucfirst($state)),
         ];
     }
 

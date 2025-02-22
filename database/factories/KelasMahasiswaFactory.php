@@ -22,7 +22,6 @@ class KelasMahasiswaFactory extends Factory
         return [
             'kelas_id' => Kelas::inRandomOrder()->first()->id ?? Kelas::factory()->create()->id,
             'mahasiswa_id' => User::role('mahasiswa')->inRandomOrder()->first()->id ?? User::factory()->create()->assignRole('mahasiswa')->id,
-            'status' => $this->faker->randomElement(['pending', 'accepted', 'rejected']),
         ];
     }
 }
