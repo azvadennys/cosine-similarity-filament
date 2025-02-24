@@ -11,14 +11,15 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // database/migrations/xxxx_create_kelas_mahasiswa_table.php
-        Schema::create('kelas_mahasiswa', function (Blueprint $table) {
+        // Migration untuk tabel tugas
+        Schema::create('tugas', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('kelas_id')->constrained('kelas')->onDelete('cascade');
-            $table->foreignId('mahasiswa_id')->constrained('users')->onDelete('cascade');
+            $table->string('judul');
+            $table->text('deskripsi')->nullable();
+            $table->foreignId('kelas_id')->constrained('kelas')->onDelete('cascade'); // Relasi ke kelas
+            $table->timestamp('batas_waktu')->nullable(); // Batas waktu pengumpulan tugas
             $table->timestamps();
         });
-
     }
 
     /**
@@ -26,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('kelas_mahasiswas');
+        Schema::dropIfExists('tugas');
     }
 };
